@@ -177,7 +177,7 @@ def run(code_dir, issue_body):
 
     files_to_modify = get_files_to_modify(issue_body)
     new_code = fix_code(files_to_modify, issue_body)
-    # if validate_result(issue_body, new_code):
-    #     raise Exception("Code not validated")
+    if validate_result(issue_body, new_code):
+        raise Exception("Code not validated")
     for x in new_code:
         update_code([x["path"]], x["code"])
