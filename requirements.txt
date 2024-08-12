@@ -1,0 +1,11 @@
+agentops==0.3.7
+crewai==0.51.1
+crewai_tools==0.8.3
+fastapi==0.112.0
+groq==0.9.0
+langchain_groq==0.1.9
+openai==1.40.6
+PyGithub==2.3.0
+python-decouple==3.8
+Requests==2.32.3
+uvicorn==0.30.5

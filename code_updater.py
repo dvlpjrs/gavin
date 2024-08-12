@@ -4,48 +4,43 @@ from decouple import config
 import re
 import json
 from openai import OpenAI
-from utils import PROMPTS
+from utils import prompts
 
-
+# Set environment variables
 os.environ["GROQ_API_KEY"] = config("GROQ_API_KEY")
 os.environ["OPENAI_API_KEY"] = config("OPENAI_API_KEY")
 
+# Initialize clients
 client = Groq()
 openai_client = OpenAI()
 
-
 def list_all_files(directory):
+    """List all files in a directory."""
     file_paths = []
     for root, _, files in os.walk(directory):
         for file in files:
             file_paths.append(os.path.join(root, file))
     return file_paths
 
-
 def check_issue_support(title, body):
-    # Check if the issue is supported by the bot
+    """Check if the issue is supported by the bot."""
     completion = client.chat.completions.create(
         model="llama-3.1-70b-versatile",
         messages=[
             {
                 "role": "system",
-                "content": "Analyse the user created issue in github and categories it based on its fixable logical (by logical i mean its a bug in code that can be fixed and not eniveriment related or anything with external factor) or not. Only answer it as true or false",
+                "content": prompts.CHECK_ISSUE_SUPPORT_PROMPT,
             },
             {
                 "role": "user",
-                "content": f"""
-                title: {title}
-                body: {body}
-             """,
+                "content": f"title: {title}\nbody: {body}",
             },
         ],
     )
-    if completion.choices[0].message.content.lower() == "false":
-        return False
-    return True
-
+    return completion.choices[0].message.content.lower() == "true"
 
 def gen_code_file_summary(file_path):
+    """Generate a summary of the code file."""
     with open(file_path, "r") as file:
         lines = file.readlines()
     completion = client.chat.completions.create(
@@ -53,7 +48,7 @@ def gen_code_file_summary(file_path):
         messages=[
             {
                 "role": "system",
-                "content": "Explain the logic of the files in short paragraph no more than 2-4 lines. Only provide the explanation without any other data",
+                "content": prompts.GEN_CODE_FILE_SUMMARY_PROMPT,
             },
             {"role": "user", "content": "\n".join(lines)},
         ],
@@ -61,9 +56,8 @@ def gen_code_file_summary(file_path):
     )
     return f"{file_path} - {completion.choices[0].message.content}"
 
-
 def get_files_to_modify(issue):
-    # Get the files that need to be modified to fix the issue
+    """Get the files that need to be modified to fix the issue."""
     with open("ai_summary.txt", "r") as file:
         lines = file.read()
     completion = client.chat.completions.create(
@@ -71,8 +65,7 @@ def get_files_to_modify(issue):
         messages=[
             {
                 "role": "system",
-                "content": f"""Based on the issue, please provide me the least amount of files that needs to be modified to fix the issue. Only provide file paths with one file path per line and nothing else 
-                Issue: {issue}""",
+                "content": f"{prompts.GET_FILES_TO_MODIFY_PROMPT}\nIssue: {issue}",
             },
             {"role": "user", "content": lines},
         ],
@@ -80,10 +73,9 @@ def get_files_to_modify(issue):
     )
     return completion.choices[0].message.content.split("\n")
 
-
 def fix_code(file_paths, issue):
+    """Fix the issue in the provided files."""
     prompt = f"The issue faced: {issue}\n"
-    # Fix the issue in the file
     for x in file_paths:
         if not os.path.exists(x):
             continue
@@ -97,9 +89,7 @@ def fix_code(file_paths, issue):
         messages=[
             {
                 "role": "system",
-                "content": """Fix the user provided code with minimal changes and provide the complete final code to directly replace the old code. Ensure the response is in valid JSON format and contains no explanations.
-            example:
-            [{"path": "./example/app/app.py", "code": "print('hello world')"}]""",
+                "content": prompts.FIX_CODE_PROMPT,
             },
             {"role": "user", "content": prompt},
         ],
@@ -107,25 +97,22 @@ def fix_code(file_paths, issue):
     modified_code = completion.choices[0].message.content
     return json.loads(modified_code)
 
-
 def update_code(file_paths, code):
+    """Update the code in the provided file paths."""
     for x in file_paths:
         with open(x, "w") as file:
             file.write(code)
 
-
 def validate_result(issue, modified_code):
-    prompt = f"""
-    issue: {issue}
-    modified_code: {modified_code}
-    """
+    """Validate the result of the code modification."""
+    prompt = f"issue: {issue}\nmodified_code: {modified_code}\n"
     validate_count = 0
     completion1 = client.chat.completions.create(
         model="llama-3.1-70b-versatile",
         messages=[
             {
                 "role": "system",
-                "content": """Based on the issue and solution suggested, can you return a true or false based on how accurately the issue is solved or not? Dont include anything else""",
+                "content": prompts.VALIDATE_RESULT_PROMPT,
             },
             {"role": "user", "content": prompt},
         ],
@@ -135,7 +122,7 @@ def validate_result(issue, modified_code):
         messages=[
             {
                 "role": "system",
-                "content": """Based on the issue and solution suggested, can you return a true or false based on how accurately the issue is solved or not? Dont include anything else""",
+                "content": prompts.VALIDATE_RESULT_PROMPT,
             },
             {"role": "user", "content": prompt},
         ],
@@ -145,7 +132,7 @@ def validate_result(issue, modified_code):
         messages=[
             {
                 "role": "system",
-                "content": """Based on the issue and solution suggested, can you return a true or false based on how accurately the issue is solved or not? Dont include anything else""",
+                "content": prompts.VALIDATE_RESULT_PROMPT,
             },
             {"role": "user", "content": prompt},
         ],
@@ -157,13 +144,10 @@ def validate_result(issue, modified_code):
     if completion3.choices[0].message.content.lower() == "true":
         validate_count += 1
     print(validate_count)
-    if validate_count >= 2:
-        return True
-
-    return False
-
+    return validate_count >= 2
 
 def run(code_dir, issue_body):
+    """Run the code updater process."""
     ai_summary = ""
     temp = list_all_files(code_dir)
     for x in temp:
@@ -177,7 +161,7 @@ def run(code_dir, issue_body):
 
     files_to_modify = get_files_to_modify(issue_body)
     new_code = fix_code(files_to_modify, issue_body)
-    if validate_result(issue_body, new_code):
+    if not validate_result(issue_body, new_code):
         raise Exception("Code not validated")
     for x in new_code:
         update_code([x["path"]], x["code"])

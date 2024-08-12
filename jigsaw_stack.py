@@ -1,8 +1,16 @@
 import requests
 from decouple import config
 
-
 def fetch_data(query):
+    """
+    Fetch data from JigsawStack API.
+
+    Args:
+        query (str): The search query.
+
+    Returns:
+        dict: The API response data if successful, otherwise an error message.
+    """
     headers = {"x-api-key": config("JIGSAW_API_KEY")}
     url = f"https://api.jigsawstack.com/v1/web/search?query='{query}'"
     response = requests.get(url, headers=headers)
@@ -12,7 +20,6 @@ def fetch_data(query):
         return data
     else:
         return {"error": "Failed to fetch data", "status_code": response.status_code}
-
 
 # Example usage
 query = "Time Square New York"

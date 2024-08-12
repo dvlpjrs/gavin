@@ -2,20 +2,22 @@ import os
 import requests
 from fastapi import FastAPI, Request
 from github import GithubIntegration
-from codeupdater import (
+from code_updater import (
     check_issue_support,
     run,
 )
 import shutil
 import subprocess
-
+from decouple import config
 
 app = FastAPI()
-app_id = "955375"
-with open(os.path.normpath(os.path.expanduser("./bot_key.pem")), "r") as cert_file:
+
+app_id = config('GITHUB_APP_ID')
+app_key_path = config('GITHUB_APP_KEY_PATH')
+
+with open(os.path.normpath(os.path.expanduser(app_key_path)), "r") as cert_file:
     app_key = cert_file.read()
 
-# Create an GitHub integration instance
 gi = GithubIntegration(
     app_id,
     app_key,
@@ -24,8 +26,17 @@ gi = GithubIntegration(
 installation = gi.get_installations()[0]
 g = installation.get_github_for_installation()
 
-
 def git_command(command, cwd):
+    """
+    Run a Git command in the specified directory.
+
+    Args:
+        command (str): The Git command to run.
+        cwd (str): The directory to run the command in.
+
+    Returns:
+        str: The output of the Git command.
+    """
     result = subprocess.run(
         command, cwd=cwd, shell=True, text=True, capture_output=True
     )
@@ -33,8 +44,17 @@ def git_command(command, cwd):
         raise Exception(f"Git command failed: {result.stderr}")
     return result.stdout
 
-
 def process_issue(title, body, github_repo, issue_id):
+    """
+    Process an issue by cloning the repository, checking if the issue is supported,
+    running the fix, and creating a pull request.
+
+    Args:
+        title (str): The title of the issue.
+        body (str): The body of the issue.
+        github_repo (str): The name of the GitHub repository.
+        issue_id (int): The ID of the issue.
+    """
     repo = g.get_repo(github_repo)
     issue = repo.get_issue(number=issue_id)
     issue.edit(labels=["GAVIN PROCESSING"])
@@ -80,16 +100,26 @@ def process_issue(title, body, github_repo, issue_id):
         print(e)
         issue.edit(labels=["Human Action Needed"])
 
-
 def label_update():
+    """
+    Update the labels of an issue in a test repository.
+    """
     repo = g.get_repo("dvlpjrs/test_issue")
     print(repo)
     issue = repo.get_issue(number=1)
     issue.edit(labels=["Human Action Needed"])
 
-
 @app.post("/")
 async def bot(request: Request):
+    """
+    Handle incoming requests from GitHub.
+
+    Args:
+        request (Request): The incoming request.
+
+    Returns:
+        str: A response to the request.
+    """
     payload = await request.json()
     if payload["action"] == "opened":
         if "issue" in payload:
@@ -99,7 +129,6 @@ async def bot(request: Request):
             issue_id = payload["issue"]["number"]
             process_issue(title, body, github_repo, issue_id)
     return "ok"
-
 
 if __name__ == "__main__":
     import uvicorn
