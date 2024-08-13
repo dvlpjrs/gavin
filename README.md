@@ -13,7 +13,7 @@ Gavin Bot is an automated tool designed to process GitHub issues, generate code 
 
 1. Clone the repository:
     ```sh
-    git clone https://github.com/yourusername/gavin.git
+    git clone https://github.com/dvlpjrs/gavin.git
     cd gavin
     ```
 
