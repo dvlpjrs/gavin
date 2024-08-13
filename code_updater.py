@@ -58,7 +58,7 @@ def gen_code_file_summary(file_path):
 
 def get_files_to_modify(issue):
     """Get the files that need to be modified to fix the issue."""
-    with open("ai_summary.txt", "r") as file:
+    with open("temp/ai_summary.txt", "r") as file:
         lines = file.read()
     completion = client.chat.completions.create(
         model="llama-3.1-70b-versatile",
@@ -156,7 +156,8 @@ def run(code_dir, issue_body):
         except:
             pass
 
-    with open("ai_summary.txt", "w") as file:
+    os.makedirs("temp", exist_ok=True)
+    with open("temp/ai_summary.txt", "w") as file:
         file.write(ai_summary)
 
     files_to_modify = get_files_to_modify(issue_body)
@@ -165,3 +166,6 @@ def run(code_dir, issue_body):
         raise Exception("Code not validated")
     for x in new_code:
         update_code([x["path"]], x["code"])
+
+    # Delete the ai_summary.txt file
+    os.remove("temp/ai_summary.txt")
